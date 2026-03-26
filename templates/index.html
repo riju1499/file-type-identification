@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File Type Identifier</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0d0f1a;
+      color: #dde1f0;
+      min-height: 100vh;
+    }
+
+    /* ── Navigation ── */
+    nav {
+      background: #161929;
+      border-bottom: 1px solid #252a45;
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      height: 52px;
+    }
+    .nav-brand {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #7b8cff;
+      margin-right: 2rem;
+    }
+    .nav-tab {
+      padding: 0 1.2rem;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      font-size: 0.88rem;
+      color: #666d8a;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .nav-tab:hover  { color: #aab0cc; }
+    .nav-tab.active { color: #7b8cff; border-bottom-color: #7b8cff; }
+
+    /* ── Pages ── */
+    .page { display: none; padding: 2rem; max-width: 860px; margin: 0 auto; }
+    .page.active { display: block; }
+
+    /* ── Upload area ── */
+    .upload-box {
+      border: 2px dashed #252a45;
+      border-radius: 14px;
+      padding: 2rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 1rem;
+    }
+    .upload-box:hover { border-color: #7b8cff; background: #1a1e30; }
+    .upload-box input { display: none; }
+    .upload-icon { font-size: 2.2rem; margin-bottom: 0.5rem; }
+    .upload-box p { color: #666d8a; font-size: 0.88rem; }
+    #file-name, #batch-file-name {
+      color: #7b8cff;
+      margin-top: 0.6rem;
+      font-size: 0.88rem;
+      min-height: 18px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      width: 100%;
+      padding: 0.7rem;
+      background: #7b8cff;
+      color: #fff;
+      border: none;
+      border-radius: 9px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      font-weight: 600;
+      margin-top: 0.8rem;
+    }
+    .btn:hover    { background: #5c6fe0; }
+    .btn:active   { transform: scale(0.98); }
+    .btn:disabled { background: #2d3154; color: #555; cursor: not-allowed; }
+    .btn-sm {
+      width: auto;
+      padding: 0.4rem 1rem;
+      font-size: 0.82rem;
+      margin-top: 0;
+    }
+    .btn-danger { background: #3a0a0a; color: #ff5555; border: 1px solid #ff555530; }
+    .btn-danger:hover { background: #4a1010; }
+
+    /* ── Loading ── */
+    .loading {
+      text-align: center;
+      color: #666d8a;
+      font-size: 0.88rem;
+      margin-top: 1rem;
+      display: none;
+    }
+
+    /* ── Result card ── */
+    #result, #batch-result { margin-top: 1.5rem; display: none; }
+    .risk-header { display: flex; align-items: center; gap: 10px; margin-bottom: 1.2rem; }
+    .risk-badge {
+      padding: 3px 14px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .HIGH   { background: #3a0000; color: #ff5555; border: 1px solid #ff555533; }
+    .MEDIUM { background: #2a1800; color: #ffaa33; border: 1px solid #ffaa3333; }
+    .LOW    { background: #002a10; color: #44dd88; border: 1px solid #44dd8833; }
+
+    .risk-message { font-size: 0.88rem; color: #aab0cc; line-height: 1.5; }
+
+    .detail-grid {
+      display: grid;
+      gap: 1px;
+      background: #1e2235;
+      border: 1px solid #252a45;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 1.2rem;
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 9px 14px;
+      background: #161929;
+      font-size: 0.85rem;
+      gap: 1rem;
+    }
+    .detail-row:hover { background: #1a1e30; }
+    .d-label { color: #555e80; white-space: nowrap; }
+    .d-value { color: #dde1f0; text-align: right; word-break: break-all; }
+    .match-yes { color: #44dd88; font-weight: 600; }
+    .match-no  { color: #ff5555; font-weight: 600; }
+
+    /* ── Section cards ── */
+    .section-card {
+      background: #0f111a;
+      border: 1px solid #1e2235;
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .section-title {
+      font-size: 0.78rem;
+      color: #555e80;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.8rem;
+    }
+
+    /* ── Hash values ── */
+    .hash-value {
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: #7b8cff;
+      word-break: break-all;
+      background: #161929;
+      padding: 5px 8px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .hash-value:hover { background: #1e2235; }
+    .hash-label  { font-size: 0.75rem; color: #555e80; margin-bottom: 2px; }
+    .hash-row    { margin-bottom: 0.6rem; }
+    .copy-hint   { font-size: 0.7rem; color: #444; margin-top: 2px; }
+
+    /* ── VirusTotal section ── */
+    .vt-verdict {
+      display: inline-block;
+      padding: 3px 14px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-bottom: 0.8rem;
+    }
+    .vt-MALICIOUS  { background: #3a0000; color: #ff5555; }
+    .vt-SUSPICIOUS { background: #2a1800; color: #ffaa33; }
+    .vt-CLEAN      { background: #002a10; color: #44dd88; }
+    .vt-bar-row    { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.82rem; }
+    .vt-bar-label  { color: #555e80; width: 90px; }
+    .vt-bar-track  { flex: 1; background: #1e2235; border-radius: 4px; height: 6px; overflow: hidden; }
+    .vt-bar-fill   { height: 100%; border-radius: 4px; transition: width 0.5s; }
+    .vt-bar-count  { color: #aab0cc; width: 30px; text-align: right; }
+    .vt-link       { font-size: 0.8rem; color: #7b8cff; text-decoration: none; display: inline-block; margin-top: 0.5rem; }
+    .vt-link:hover { text-decoration: underline; }
+
+    /* ── Metadata ── */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 0.82rem;
+    }
+    .meta-item { background: #161929; padding: 6px 10px; border-radius: 6px; }
+    .meta-key  { color: #555e80; font-size: 0.75rem; margin-bottom: 2px; }
+    .meta-val  { color: #dde1f0; word-break: break-all; }
+
+    /* ── History table ── */
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .history-header h2 { font-size: 1rem; color: #aab0cc; font-weight: 500; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.83rem;
+    }
+    th {
+      background: #1a1e30;
+      color: #555e80;
+      padding: 9px 12px;
+      text-align: left;
+      font-weight: 500;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    td {
+      padding: 9px 12px;
+      border-bottom: 1px solid #1a1e30;
+      color: #aab0cc;
+      vertical-align: middle;
+    }
+    tr:hover td { background: #1a1e30; }
+    .empty-state { text-align: center; color: #444; padding: 3rem; font-size: 0.9rem; }
+
+    /* ── Stats dashboard ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      background: #161929;
+      border: 1px solid #252a45;
+      border-radius: 10px;
+      padding: 1rem;
+      text-align: center;
+    }
+    .stat-number { font-size: 2rem; font-weight: 600; color: #7b8cff; }
+    .stat-label  { font-size: 0.78rem; color: #555e80; margin-top: 4px; }
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .chart-card {
+      background: #161929;
+      border: 1px solid #252a45;
+      border-radius: 10px;
+      padding: 1rem;
+    }
+    .chart-card h3 { font-size: 0.82rem; color: #555e80; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.4px; }
+
+    /* ── Test Suite ── */
+    .test-summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 1.5rem;
+    }
+    .test-stat {
+      background: #161929;
+      border: 1px solid #252a45;
+      border-radius: 10px;
+      padding: 0.9rem;
+      text-align: center;
+    }
+    .test-stat-num   { font-size: 1.8rem; font-weight: 600; }
+    .test-stat-label { font-size: 0.75rem; color: #555e80; margin-top: 3px; }
+    .test-row {
+      background: #161929;
+      border: 1px solid #252a45;
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 0.6rem;
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr 80px;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.84rem;
+    }
+    .test-row-header {
+      background: #1a1e30;
+      border-radius: 8px;
+      padding: 0.6rem 1.2rem;
+      margin-bottom: 0.4rem;
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr 80px;
+      gap: 1rem;
+      font-size: 0.75rem;
+      color: #555e80;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .test-name     { color: #dde1f0; font-weight: 500; }
+    .test-expected { color: #555e80; }
+    .test-got      { color: #aab0cc; }
+    .test-desc     { color: #555e80; font-size: 0.78rem; }
+    .badge-pass { background: #002a10; color: #44dd88; border: 1px solid #44dd8833; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
+    .badge-fail { background: #3a0000; color: #ff5555; border: 1px solid #ff555533; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
+    .badge-running { background: #1a1e30; color: #7b8cff; border: 1px solid #7b8cff33; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
+    .badge-pending { background: #1a1e30; color: #555e80; border: 1px solid #55558033; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
+    .test-progress {
+      background: #1e2235;
+      border-radius: 6px;
+      height: 6px;
+      margin-bottom: 1.2rem;
+      overflow: hidden;
+      display: none;
+    }
+    .test-progress-fill {
+      height: 100%;
+      background: #7b8cff;
+      border-radius: 6px;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+    .test-suite-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.2rem;
+    }
+    .test-suite-header h2 { font-size: 1rem; color: #aab0cc; font-weight: 500; }
+
+    /* ── Batch results ── */
+    .batch-item {
+      background: #161929;
+      border: 1px solid #252a45;
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+    .batch-filename { font-size: 0.88rem; color: #dde1f0; font-weight: 500; }
+    .batch-meta     { font-size: 0.78rem; color: #555e80; margin-top: 3px; }
+    .batch-right    { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav>
+  <div class="nav-brand">🔍 File Type Identifier</div>
+  <div class="nav-tab active" onclick="showPage('single')">Single Scan</div>
+  <div class="nav-tab" onclick="showPage('batch')">Batch Scan</div>
+  <div class="nav-tab" onclick="showPage('history'); loadHistory()">Scan History</div>
+  <div class="nav-tab" onclick="showPage('dashboard'); loadStats()">Dashboard</div>
+  <div class="nav-tab" onclick="showPage('testsuite')">🧪 Test Suite</div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- PAGE 1: Single File Scan                        -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="page-single" class="page active">
+
+  <div class="upload-box"
+       id="dropZone"
+       onclick="document.getElementById('fileInput').click()"
+       ondragover="handleDragOver(event)"
+       ondragleave="handleDragLeave(event)"
+       ondrop="handleDrop(event)">
+    <div class="upload-icon" id="dropIcon">📂</div>
+    <p id="dropText">Click to select a file — or drag and drop it here</p>
+    <p id="file-name"></p>
+    <input type="file" id="fileInput" onchange="onFileSelected(this, 'file-name', 'analyzeBtn')">
+  </div>
+
+  <button class="btn" id="analyzeBtn" onclick="analyzeFile()" disabled>Analyze File</button>
+  <div class="loading" id="loading">⏳ Analyzing file...</div>
+
+  <div id="result">
+
+    <!-- Risk summary -->
+    <div class="risk-header">
+      <span class="risk-badge" id="riskBadge"></span>
+      <span class="risk-message" id="riskMessage"></span>
+    </div>
+
+    <!-- File details -->
+    <div class="detail-grid" id="detailGrid"></div>
+
+    <!-- VirusTotal -->
+    <div class="section-card" id="vtSection">
+      <div class="section-title">VirusTotal Result</div>
+      <div id="vtContent"></div>
+    </div>
+
+    <!-- Metadata -->
+    <div class="section-card" id="metaSection">
+      <div class="section-title">File Metadata</div>
+      <div id="metaContent"></div>
+    </div>
+
+    <!-- Hashes -->
+    <div class="section-card">
+      <div class="section-title">File Integrity Hashes</div>
+      <div class="hash-row">
+        <div class="hash-label">MD5</div>
+        <div class="hash-value" id="md5Hash" onclick="copyHash('md5Hash')"></div>
+        <div class="copy-hint">Click to copy</div>
+      </div>
+      <div class="hash-row" style="margin-bottom:0">
+        <div class="hash-label">SHA-256</div>
+        <div class="hash-value" id="sha256Hash" onclick="copyHash('sha256Hash')"></div>
+        <div class="copy-hint">Click to copy</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- PAGE 2: Batch Scan                              -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="page-batch" class="page">
+
+  <div class="upload-box" onclick="document.getElementById('batchInput').click()">
+    <div class="upload-icon">📦</div>
+    <p>Click to select multiple files at once</p>
+    <p id="batch-file-name"></p>
+    <input type="file" id="batchInput" multiple
+           onchange="onFileSelected(this, 'batch-file-name', 'batchBtn', true)">
+  </div>
+
+  <button class="btn" id="batchBtn" onclick="analyzeBatch()" disabled>Analyze All Files</button>
+  <div class="loading" id="batch-loading">⏳ Analyzing files... this may take a moment</div>
+
+  <div id="batch-result"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- PAGE 3: Scan History                            -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="page-history" class="page">
+  <div class="history-header">
+    <h2>All past scans</h2>
+    <button class="btn btn-sm btn-danger" onclick="clearHistory()">Clear History</button>
+  </div>
+  <div id="historyTable"><div class="empty-state">Loading...</div></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- PAGE 4: Dashboard                               -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="page-dashboard" class="page">
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-number" id="statTotal">—</div>
+      <div class="stat-label">Total scans</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" id="statHigh" style="color:#ff5555">—</div>
+      <div class="stat-label">High risk</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" id="statClean" style="color:#44dd88">—</div>
+      <div class="stat-label">Clean files</div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3>Risk breakdown</h3>
+      <canvas id="riskChart" height="200"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Top file types</h3>
+      <canvas id="typeChart" height="200"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- PAGE 5: Test Suite                              -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="page-testsuite" class="page">
+
+  <div class="test-suite-header">
+    <h2>Automated Test Suite</h2>
+    <button class="btn btn-sm" id="runTestsBtn" onclick="runAllTests()">▶ Run All Tests</button>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="test-progress" id="testProgress" style="display:none">
+    <div class="test-progress-fill" id="testProgressFill" style="width:0%"></div>
+  </div>
+
+  <!-- Summary cards shown after run -->
+  <div class="test-summary" id="testSummary" style="display:none">
+    <div class="test-stat">
+      <div class="test-stat-num" id="tTotal" style="color:#7b8cff">0</div>
+      <div class="test-stat-label">Total tests</div>
+    </div>
+    <div class="test-stat">
+      <div class="test-stat-num" id="tPass" style="color:#44dd88">0</div>
+      <div class="test-stat-label">Passed</div>
+    </div>
+    <div class="test-stat">
+      <div class="test-stat-num" id="tFail" style="color:#ff5555">0</div>
+      <div class="test-stat-label">Failed</div>
+    </div>
+    <div class="test-stat">
+      <div class="test-stat-num" id="tScore" style="color:#ffaa33">0%</div>
+      <div class="test-stat-label">Score</div>
+    </div>
+  </div>
+
+  <!-- Column headers -->
+  <div class="test-row-header">
+    <span>Test name</span>
+    <span>Expected</span>
+    <span>Got</span>
+    <span>Description</span>
+    <span>Status</span>
+  </div>
+
+  <!-- Test rows populated by JS -->
+  <div id="testRows"></div>
+
+</div>
+
+<script>
+// ── Navigation ────────────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── File selection ────────────────────────────────────────────────────────────
+function onFileSelected(input, labelId, btnId, multi = false) {
+  const files = input.files;
+  if (!files.length) return;
+  const label = multi
+    ? `${files.length} file${files.length > 1 ? 's' : ''} selected`
+    : '📄 ' + files[0].name;
+  document.getElementById(labelId).textContent = label;
+  document.getElementById(btnId).disabled = false;
+  document.getElementById('result') && (document.getElementById('result').style.display = 'none');
+}
+
+// ── Single file analysis ──────────────────────────────────────────────────────
+async function analyzeFile() {
+  const file = document.getElementById('fileInput').files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  setLoading('loading', 'analyzeBtn', 'result', true);
+  try {
+    const res  = await fetch('/analyze', { method: 'POST', body: fd });
+    const data = await res.json();
+    showSingleResult(data);
+  } catch (e) { alert('Error: ' + e.message); }
+  finally { setLoading('loading', 'analyzeBtn', 'result', false); }
+}
+
+function setLoading(loadId, btnId, resultId, on) {
+  document.getElementById(loadId).style.display   = on ? 'block' : 'none';
+  document.getElementById(btnId).disabled         = on;
+  if (!on) document.getElementById(resultId).style.display = 'block';
+}
+
+function showSingleResult(d) {
+  // Risk badge
+  const badge = document.getElementById('riskBadge');
+  badge.textContent = d.risk + ' RISK';
+  badge.className   = 'risk-badge ' + d.risk;
+  document.getElementById('riskMessage').textContent = d.message;
+
+  // Detail rows
+  const mc = d.is_match ? 'match-yes' : 'match-no';
+  const mt = d.is_match ? '✅ Match'  : '❌ Mismatch';
+  document.getElementById('detailGrid').innerHTML = `
+    ${row('Filename',          d.filename)}
+    ${row('Claimed extension', '.' + d.extension)}
+    ${row('Actual type',       d.detected_type + ' (.' + d.detected_ext + ')')}
+    ${row('MIME type',         d.mime_type)}
+    ${row('File size',         d.size_kb + ' KB')}
+    ${row('Extension match',   mt, mc)}
+    ${row('Entropy',           d.entropy + ' / 8.0')}
+    ${row('Entropy note',      d.entropy_note)}
+  `;
+
+  // VirusTotal
+  renderVT(d.virustotal);
+
+  // Metadata
+  renderMetadata(d.metadata);
+
+  // Hashes
+  document.getElementById('md5Hash').textContent    = d.md5;
+  document.getElementById('sha256Hash').textContent = d.sha256;
+  document.getElementById('result').style.display   = 'block';
+}
+
+function renderVT(vt) {
+  const el = document.getElementById('vtContent');
+  if (!vt || vt.status === 'skipped') {
+    el.innerHTML = '<p style="color:#555e80;font-size:0.85rem">VirusTotal API key not configured. Add your key in app.py to enable this feature.</p>';
+    return;
+  }
+  if (vt.status === 'error') {
+    el.innerHTML = `<p style="color:#ff5555;font-size:0.85rem">Error: ${vt.message}</p>`;
+    return;
+  }
+  if (vt.status === 'not_found') {
+    el.innerHTML = `<p style="color:#44dd88;font-size:0.85rem">✅ File not found in VirusTotal database — no known threats.</p>
+      <a class="vt-link" href="${vt.link}" target="_blank">View on VirusTotal ↗</a>`;
+    return;
+  }
+  const total = vt.total || 1;
+  el.innerHTML = `
+    <span class="vt-verdict vt-${vt.verdict}">${vt.verdict}</span>
+    <p style="font-size:0.85rem;color:#aab0cc;margin-bottom:0.8rem">${vt.message}</p>
+    ${vtBar('Malicious',  vt.malicious,  total, '#ff5555')}
+    ${vtBar('Suspicious', vt.suspicious, total, '#ffaa33')}
+    ${vtBar('Harmless',   vt.harmless,   total, '#44dd88')}
+    ${vtBar('Undetected', vt.undetected, total, '#555e80')}
+    <a class="vt-link" href="${vt.link}" target="_blank">View full report on VirusTotal ↗</a>
+  `;
+}
+
+function vtBar(label, count, total, color) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return `<div class="vt-bar-row">
+    <span class="vt-bar-label">${label}</span>
+    <div class="vt-bar-track"><div class="vt-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+    <span class="vt-bar-count">${count}</span>
+  </div>`;
+}
+
+function renderMetadata(meta) {
+  const el = document.getElementById('metaContent');
+  if (!meta || Object.keys(meta).length === 0) {
+    el.innerHTML = '<p style="color:#555e80;font-size:0.85rem">No metadata available for this file type.</p>';
+    return;
+  }
+  const items = Object.entries(meta)
+    .filter(([k]) => k !== 'error')
+    .map(([k, v]) => {
+      const display = typeof v === 'object' ? JSON.stringify(v) : v;
+      return `<div class="meta-item"><div class="meta-key">${k}</div><div class="meta-val">${display}</div></div>`;
+    }).join('');
+  el.innerHTML = `<div class="meta-grid">${items || '<p style="color:#555e80;font-size:0.85rem">No metadata found.</p>'}</div>`;
+}
+
+function row(label, value, cls = '') {
+  return `<div class="detail-row">
+    <span class="d-label">${label}</span>
+    <span class="d-value ${cls}">${value}</span>
+  </div>`;
+}
+
+// ── Batch analysis ────────────────────────────────────────────────────────────
+async function analyzeBatch() {
+  const files = document.getElementById('batchInput').files;
+  if (!files.length) return;
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+
+  document.getElementById('batch-loading').style.display = 'block';
+  document.getElementById('batchBtn').disabled           = true;
+  document.getElementById('batch-result').style.display  = 'none';
+
+  try {
+    const res     = await fetch('/analyze_batch', { method: 'POST', body: fd });
+    const results = await res.json();
+    showBatchResults(results);
+  } catch (e) { alert('Error: ' + e.message); }
+  finally {
+    document.getElementById('batch-loading').style.display = 'none';
+    document.getElementById('batchBtn').disabled           = false;
+    document.getElementById('batch-result').style.display  = 'block';
+  }
+}
+
+function showBatchResults(results) {
+  const el = document.getElementById('batch-result');
+  if (!results.length) {
+    el.innerHTML = '<div class="empty-state">No results.</div>';
+    return;
+  }
+  el.innerHTML = results.map(d => `
+    <div class="batch-item">
+      <div>
+        <div class="batch-filename">📄 ${d.filename}</div>
+        <div class="batch-meta">${d.detected_type} · ${d.size_kb} KB · Entropy: ${d.entropy}</div>
+        <div class="batch-meta" style="margin-top:3px;color:#aab0cc">${d.message}</div>
+      </div>
+      <div class="batch-right">
+        <span class="risk-badge ${d.risk}">${d.risk}</span>
+        ${d.is_match
+          ? '<span style="color:#44dd88;font-size:0.8rem">✅ Match</span>'
+          : '<span style="color:#ff5555;font-size:0.8rem">❌ Mismatch</span>'}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+async function loadHistory() {
+  const el = document.getElementById('historyTable');
+  el.innerHTML = '<div class="empty-state">Loading...</div>';
+  try {
+    const res  = await fetch('/history');
+    const rows = await res.json();
+    if (!rows.length) {
+      el.innerHTML = '<div class="empty-state">No scans yet. Analyze a file to get started.</div>';
+      return;
+    }
+    el.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Filename</th>
+            <th>Detected Type</th>
+            <th>Risk</th>
+            <th>Match</th>
+            <th>Size (KB)</th>
+            <th>Scanned At</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td>${r.filename}</td>
+              <td>${r.detected_type}</td>
+              <td><span class="risk-badge ${r.risk}" style="font-size:0.7rem">${r.risk}</span></td>
+              <td>${r.is_match ? '<span style="color:#44dd88">✅</span>' : '<span style="color:#ff5555">❌</span>'}</td>
+              <td>${r.size_kb}</td>
+              <td style="color:#555e80">${r.scanned_at}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (e) { el.innerHTML = `<div class="empty-state">Error: ${e.message}</div>`; }
+}
+
+async function clearHistory() {
+  if (!confirm('Clear all scan history?')) return;
+  await fetch('/clear_history', { method: 'POST' });
+  loadHistory();
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+let riskChartInst = null;
+let typeChartInst = null;
+
+async function loadStats() {
+  try {
+    const res  = await fetch('/stats');
+    const data = await res.json();
+
+    document.getElementById('statTotal').textContent = data.total;
+    const high  = data.by_risk.find(r => r.risk === 'HIGH');
+    const low   = data.by_risk.find(r => r.risk === 'LOW');
+    document.getElementById('statHigh').textContent  = high  ? high.count  : 0;
+    document.getElementById('statClean').textContent = low   ? low.count   : 0;
+
+    // Risk pie chart
+    const riskCtx = document.getElementById('riskChart').getContext('2d');
+    if (riskChartInst) riskChartInst.destroy();
+    riskChartInst = new Chart(riskCtx, {
+      type: 'doughnut',
+      data: {
+        labels  : data.by_risk.map(r => r.risk),
+        datasets: [{
+          data           : data.by_risk.map(r => r.count),
+          backgroundColor: data.by_risk.map(r =>
+            r.risk === 'HIGH'   ? '#ff5555' :
+            r.risk === 'MEDIUM' ? '#ffaa33' : '#44dd88'),
+          borderWidth: 0,
+        }],
+      },
+      options: {
+        plugins: { legend: { labels: { color: '#aab0cc', font: { size: 11 } } } },
+      },
+    });
+
+    // File types bar chart
+    const typeCtx = document.getElementById('typeChart').getContext('2d');
+    if (typeChartInst) typeChartInst.destroy();
+    typeChartInst = new Chart(typeCtx, {
+      type: 'bar',
+      data: {
+        labels  : data.by_type.map(t => t.detected_type),
+        datasets: [{
+          label          : 'Scans',
+          data           : data.by_type.map(t => t.count),
+          backgroundColor: '#7b8cff',
+          borderRadius   : 4,
+        }],
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales : {
+          x: { ticks: { color: '#555e80', font: { size: 10 } }, grid: { color: '#1a1e30' } },
+          y: { ticks: { color: '#555e80' }, grid: { color: '#1a1e30' } },
+        },
+      },
+    });
+  } catch (e) { console.error(e); }
+}
+
+// ── Drag and Drop ─────────────────────────────────────────────────────────────
+function handleDragOver(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const zone = document.getElementById('dropZone');
+  zone.style.borderColor = '#7b8cff';
+  zone.style.background  = '#1a1e30';
+  document.getElementById('dropIcon').textContent = '📥';
+  document.getElementById('dropText').textContent = 'Drop it!';
+}
+
+function handleDragLeave(e) {
+  e.preventDefault();
+  const zone = document.getElementById('dropZone');
+  zone.style.borderColor = '';
+  zone.style.background  = '';
+  document.getElementById('dropIcon').textContent = '📂';
+  document.getElementById('dropText').textContent = 'Click to select a file — or drag and drop it here';
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  handleDragLeave(e);
+
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+
+  // Inject dropped file into existing file input so rest of code works unchanged
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  document.getElementById('fileInput').files = dt.files;
+
+  document.getElementById('file-name').textContent = '📄 ' + file.name;
+  document.getElementById('analyzeBtn').disabled   = false;
+  document.getElementById('result').style.display  = 'none';
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function copyHash(id) {
+  navigator.clipboard.writeText(document.getElementById(id).textContent).then(() => {
+    const el  = document.getElementById(id);
+    const old = el.textContent;
+    el.textContent = '✅ Copied!';
+    setTimeout(() => el.textContent = old, 1500);
+  });
+}
+
+// ── Test Suite ────────────────────────────────────────────────────────────────
+const TEST_CASES = [
+  { name:'JPEG correct extension',     filename:'photo.jpg',      bytes:[0xFF,0xD8,0xFF,0xE0,0x00,0x10,0x4A,0x46,0x49,0x46,0x00,0x01], expectRisk:'LOW',    expectMatch:true,  desc:'Real JPG with .jpg extension' },
+  { name:'JPEG disguised as PDF',      filename:'report.pdf',     bytes:[0xFF,0xD8,0xFF,0xE0,0x00,0x10,0x4A,0x46,0x49,0x46,0x00,0x01], expectRisk:'MEDIUM', expectMatch:false, desc:'JPG bytes but .pdf extension' },
+  { name:'PNG correct extension',      filename:'image.png',      bytes:[0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,0x00,0x00,0x00,0x0D], expectRisk:'LOW',    expectMatch:true,  desc:'Real PNG with .png extension' },
+  { name:'PNG disguised as DOCX',      filename:'resume.docx',    bytes:[0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,0x00,0x00,0x00,0x0D], expectRisk:'MEDIUM', expectMatch:false, desc:'PNG bytes but .docx extension' },
+  { name:'EXE correct extension',      filename:'setup.exe',      bytes:[0x4D,0x5A,0x90,0x00,0x03,0x00,0x00,0x00,0x04,0x00,0x00,0x00], expectRisk:'MEDIUM', expectMatch:true,  desc:'Windows EXE correctly labelled' },
+  { name:'EXE disguised as JPG',       filename:'photo.jpg',      bytes:[0x4D,0x5A,0x90,0x00,0x03,0x00,0x00,0x00,0x04,0x00,0x00,0x00], expectRisk:'HIGH',   expectMatch:false, desc:'Dangerous! EXE hidden as image' },
+  { name:'EXE disguised as PDF',       filename:'invoice.pdf',    bytes:[0x4D,0x5A,0x90,0x00,0x03,0x00,0x00,0x00,0x04,0x00,0x00,0x00], expectRisk:'HIGH',   expectMatch:false, desc:'Classic malware delivery trick' },
+  { name:'PDF correct extension',      filename:'document.pdf',   bytes:[0x25,0x50,0x44,0x46,0x2D,0x31,0x2E,0x34,0x0A,0x25,0xE2,0xE3], expectRisk:'LOW',    expectMatch:true,  desc:'Legitimate PDF file' },
+  { name:'ZIP correct extension',      filename:'archive.zip',    bytes:[0x50,0x4B,0x03,0x04,0x14,0x00,0x00,0x00,0x08,0x00,0x00,0x00], expectRisk:'LOW',    expectMatch:true,  desc:'Valid ZIP archive' },
+  { name:'ZIP disguised as PNG',       filename:'screenshot.png', bytes:[0x50,0x4B,0x03,0x04,0x14,0x00,0x00,0x00,0x08,0x00,0x00,0x00], expectRisk:'MEDIUM', expectMatch:false, desc:'ZIP hidden as image file' },
+  { name:'Linux ELF disguised as TXT', filename:'readme.txt',     bytes:[0x7F,0x45,0x4C,0x46,0x02,0x01,0x01,0x00,0x00,0x00,0x00,0x00], expectRisk:'HIGH',   expectMatch:false, desc:'Linux executable hidden as text' },
+  { name:'GIF correct extension',      filename:'anim.gif',       bytes:[0x47,0x49,0x46,0x38,0x39,0x61,0x10,0x00,0x10,0x00,0x80,0x00], expectRisk:'LOW',    expectMatch:true,  desc:'Valid GIF89a animation' },
+];
+
+function initTestRows() {
+  document.getElementById('testRows').innerHTML = TEST_CASES.map((t, i) => `
+    <div class="test-row" id="trow-${i}">
+      <span class="test-name">${t.name}</span>
+      <span class="test-expected">
+        <span class="risk-badge ${t.expectRisk}" style="font-size:0.7rem">${t.expectRisk}</span>
+        &nbsp;${t.expectMatch ? '✅ Match' : '❌ Mismatch'}
+      </span>
+      <span class="test-got" id="tgot-${i}">—</span>
+      <span class="test-desc">${t.desc}</span>
+      <span id="tstatus-${i}"><span class="badge-pending">Pending</span></span>
+    </div>
+  `).join('');
+}
+
+function makeFile(bytes, filename) {
+  const full = new Uint8Array(512);
+  full.set(new Uint8Array(bytes));
+  return new File([full], filename);
+}
+
+async function runAllTests() {
+  document.getElementById('runTestsBtn').disabled       = true;
+  document.getElementById('testProgress').style.display = 'block';
+  document.getElementById('testSummary').style.display  = 'none';
+  initTestRows();
+
+  let passed = 0, failed = 0;
+
+  for (let i = 0; i < TEST_CASES.length; i++) {
+    const t = TEST_CASES[i];
+    document.getElementById(`tstatus-${i}`).innerHTML = '<span class="badge-running">Running…</span>';
+    document.getElementById(`tgot-${i}`).textContent  = '…';
+    document.getElementById('testProgressFill').style.width = Math.round((i / TEST_CASES.length) * 100) + '%';
+
+    try {
+      const fd = new FormData();
+      fd.append('file', makeFile(t.bytes, t.filename));
+      const res  = await fetch('/analyze', { method: 'POST', body: fd });
+      const data = await res.json();
+      const pass = data.risk === t.expectRisk && data.is_match === t.expectMatch;
+
+      document.getElementById(`tgot-${i}`).innerHTML = `
+        <span class="risk-badge ${data.risk}" style="font-size:0.7rem">${data.risk}</span>
+        &nbsp;${data.is_match ? '✅ Match' : '❌ Mismatch'}
+      `;
+
+      if (pass) {
+        passed++;
+        document.getElementById(`tstatus-${i}`).innerHTML      = '<span class="badge-pass">✅ Pass</span>';
+        document.getElementById(`trow-${i}`).style.borderColor = '#44dd8833';
+      } else {
+        failed++;
+        document.getElementById(`tstatus-${i}`).innerHTML      = '<span class="badge-fail">❌ Fail</span>';
+        document.getElementById(`trow-${i}`).style.borderColor = '#ff555533';
+      }
+    } catch(e) {
+      failed++;
+      document.getElementById(`tgot-${i}`).textContent   = 'Error';
+      document.getElementById(`tstatus-${i}`).innerHTML  = '<span class="badge-fail">❌ Error</span>';
+    }
+
+    await new Promise(r => setTimeout(r, 350));
+  }
+
+  document.getElementById('testProgressFill').style.width = '100%';
+  setTimeout(() => document.getElementById('testProgress').style.display = 'none', 600);
+
+  const score = Math.round((passed / TEST_CASES.length) * 100);
+  document.getElementById('tTotal').textContent        = TEST_CASES.length;
+  document.getElementById('tPass').textContent         = passed;
+  document.getElementById('tFail').textContent         = failed;
+  document.getElementById('tScore').textContent        = score + '%';
+  document.getElementById('testSummary').style.display = 'grid';
+  document.getElementById('runTestsBtn').disabled      = false;
+  document.getElementById('runTestsBtn').textContent   = '↺ Run Again';
+}
+
+document.addEventListener('DOMContentLoaded', initTestRows);
+</script>
+
+</body>
+</html>
