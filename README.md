@@ -469,7 +469,7 @@ CREATE TABLE scans (
 
 ## 👨‍💻 Author
 
-**Your Name**
+Riju Phaiju
 Final Year Engineering Student
 Cybersecurity Subject Project — 2026
 
